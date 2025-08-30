@@ -14,22 +14,24 @@
     "pack": "electron-builder --dir",
     "dist": "vite build && electron-builder"
   },
- "build": {
-  "appId": "com.example.myapp",
-  "productName": "MyElectronApp",
-  "directories": {
-    "output": "dist-electron"
+  "build": {
+    "appId": "com.example.myapp",
+    "productName": "MyElectronApp",
+    "directories": {
+      "output": "dist-electron"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": "nsis"
+    }
   },
-  "files": [
-    "dist/**/*",
-    "electron/**/*",
-    "package.json"
-  ],
-  "win": {
-    "target": "nsis"
-  }
-},
   "dependencies": {
+    "https-proxy-agent": "^7.0.6",
+    "lowdb": "^1.0.0",
     "vue": "^3.5.18",
     "vue-router": "^4.5.1"
   },
@@ -40,6 +42,7 @@
     "cross-env": "^7.0.3",
     "electron": "^28.2.0",
     "electron-builder": "^26.0.12",
+    "electron-rebuild": "^3.2.9",
     "postcss": "^8.5.6",
     "tailwindcss": "^3.4.13",
     "vite": "^7.1.2",

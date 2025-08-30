@@ -1,54 +1,51 @@
 // electron/main.js
-const { app, BrowserWindow, ipcMain } = require('electron');
-const path = require('path');
-const { spawn, spawnSync } = require('child_process');
-const fs = require('fs');
-const readline = require('readline');
+const { app, BrowserWindow, ipcMain } = require("electron");
+const path = require("path");
+const { spawn, spawnSync } = require("child_process");
+const fs = require("fs");
+const readline = require("readline");
 
 /* ===== Binance deps (خفيفة) ===== */
-const crypto = require('crypto');
+const crypto = require("crypto");
 let HttpsProxyAgent;
-try { ({ HttpsProxyAgent } = require('https-proxy-agent')); } catch {}
+try {
+  ({ HttpsProxyAgent } = require("https-proxy-agent"));
+} catch {}
 
 /* ===== نافذة/بايثون ===== */
 let win;
 let pyChild = null;
 
 /** مسارات التطوير */
-const DEV_PY_DIR = 'C:\\Users\\Khalid Abu Hawwas\\OneDrive\\Desktop\\tele-signals';
-const DEV_VENV_PY = path.join(DEV_PY_DIR, 'venv', 'Scripts', 'python.exe');
-const DEV_SCRIPT  = path.join(DEV_PY_DIR, 'tele_signal_bot.py');
+const DEV_PY_DIR = "C:\\Users\\a7mad\\Desktop\\tele-signals";
+const DEV_VENV_PY = path.join(DEV_PY_DIR, "venv", "Scripts", "python.exe");
+const DEV_SCRIPT = path.join(DEV_PY_DIR, "tele_signal_bot.py");
 
 /** اختيار بايثون مناسب */
 function pickPythonExe() {
-  // استخدم venv أولاً إن وجد
   if (!app.isPackaged && fs.existsSync(DEV_VENV_PY)) return DEV_VENV_PY;
 
-  if (process.platform === 'win32') {
-    const test = spawnSync('py', ['-V'], { encoding: 'utf8' });
-    if (!test.error && (test.stdout || test.stderr)) return 'py';
+  if (process.platform === "win32") {
+    const test = spawnSync("py", ["-V"], { encoding: "utf8" });
+    if (!test.error && (test.stdout || test.stderr)) return "py";
   }
+  const testPy = spawnSync("python", ["-V"], { encoding: "utf8" });
+  if (!testPy.error && (testPy.stdout || testPy.stderr)) return "python";
 
-  const testPy = spawnSync('python', ['-V'], { encoding: 'utf8' });
-  if (!testPy.error && (testPy.stdout || testPy.stderr)) return 'python';
-
-  const testPy3 = spawnSync('python3', ['-V'], { encoding: 'utf8' });
-  if (!testPy3.error && (testPy3.stdout || testPy3.stderr)) return 'python3';
+  const testPy3 = spawnSync("python3", ["-V"], { encoding: "utf8" });
+  if (!testPy3.error && (testPy3.stdout || testPy3.stderr)) return "python3";
 
   return null;
 }
 
 /** تحديد مسار السكربت و CWD بحسب حالة التطوير/الإنتاج */
 function resolveScriptPath() {
-  if (!app.isPackaged) {
-    return { script: DEV_SCRIPT, cwd: DEV_PY_DIR };
-  }
-  // في الإنتاج: جرّب عدّة مواقع شائعة داخل resources
+  if (!app.isPackaged) return { script: DEV_SCRIPT, cwd: DEV_PY_DIR };
   const candidates = [
-    path.join(process.resourcesPath, 'tele_signal_bot.py'),
-    path.join(process.resourcesPath, 'app', 'tele_signal_bot.py'),
-    path.join(process.resourcesPath, 'app.asar.unpacked', 'tele_signal_bot.py'),
-    DEV_SCRIPT, // كنسخة أخيرة: مسار التطوير (لو شغلت نسخة محمولة)
+    path.join(process.resourcesPath, "tele_signal_bot.py"),
+    path.join(process.resourcesPath, "app", "tele_signal_bot.py"),
+    path.join(process.resourcesPath, "app.asar.unpacked", "tele_signal_bot.py"),
+    DEV_SCRIPT,
   ];
   for (const p of candidates) {
     if (fs.existsSync(p)) return { script: p, cwd: path.dirname(p) };
@@ -57,11 +54,10 @@ function resolveScriptPath() {
 }
 
 function spawnSignalBot() {
-  if (pyChild) return; // Already running
+  if (pyChild) return;
 
-  // اختر مفسّر بايثون
   const pyExe = app.isPackaged
-    ? path.join(process.resourcesPath, 'python', 'python.exe')  // لو بتضمّن بايثون مع التطبيق
+    ? path.join(process.resourcesPath, "python", "python.exe")
     : pickPythonExe();
 
   const { script, cwd } = resolveScriptPath();
@@ -69,61 +65,76 @@ function spawnSignalBot() {
   if (!fs.existsSync(script)) {
     const msg = `Python script not found at: ${script}`;
     console.error(msg);
-    win?.webContents.send('signals:meta', { type: 'spawn_error', data: msg });
+    win?.webContents.send("signals:meta", { type: "spawn_error", data: msg });
     return;
   }
   if (!pyExe) {
-    const msg = 'No Python interpreter found. Install Python or create a venv.';
+    const msg = "No Python interpreter found. Install Python or create a venv.";
     console.error(msg);
-    win?.webContents.send('signals:meta', { type: 'spawn_error', data: msg });
+    win?.webContents.send("signals:meta", { type: "spawn_error", data: msg });
     return;
   }
 
-  win?.webContents.send('signals:meta', { type: 'spawn_info', data: { pyExe, cwd, script } });
+  win?.webContents.send("signals:meta", {
+    type: "status",
+    data: { stage: "starting" },
+  });
+  win?.webContents.send("signals:meta", {
+    type: "spawn_info",
+    data: { pyExe, cwd, script },
+  });
 
   pyChild = spawn(pyExe, [script], {
     cwd,
-    env: { ...process.env, PYTHONIOENCODING: 'utf-8' },
+    env: { ...process.env, PYTHONIOENCODING: "utf-8" },
     windowsHide: true,
-    stdio: ['pipe', 'pipe', 'pipe'],
+    stdio: ["pipe", "pipe", "pipe"],
   });
 
-  // مهم لكتابة UTF-8 إلى stdin
-  try { pyChild.stdin.setDefaultEncoding('utf-8'); } catch {}
+  try {
+    pyChild.stdin.setDefaultEncoding("utf-8");
+  } catch {}
 
-  // اقرأ stdout كسطر/سطر
-  const rl = readline.createInterface({ input: pyChild.stdout, crlfDelay: Infinity });
-  rl.on('line', (raw) => {
-    const line = (raw || '').trim();
+  const rl = readline.createInterface({
+    input: pyChild.stdout,
+    crlfDelay: Infinity,
+  });
+  rl.on("line", (raw) => {
+    const line = (raw || "").trim();
     if (!line) return;
 
-    if (!line.startsWith('@SIG@ ')) {
-      // stdout عادي (ديبَغ)
-      win?.webContents.send('signals:meta', { type: 'stdout', data: raw });
+    if (!line.startsWith("@SIG@ ")) {
+      win?.webContents.send("signals:meta", { type: "stdout", data: raw });
       return;
     }
     try {
       const obj = JSON.parse(line.slice(6));
-      if (obj.type === 'signal') {
-        win?.webContents.send('signals:new', obj.data);
-      } else {
-        win?.webContents.send('signals:meta', obj);
-      }
+      if (obj.type === "signal") win?.webContents.send("signals:new", obj.data);
+      else win?.webContents.send("signals:meta", obj);
     } catch (e) {
-      win?.webContents.send('signals:meta', { type: 'parse_error', data: { line: raw, error: String(e) } });
+      win?.webContents.send("signals:meta", {
+        type: "parse_error",
+        data: { line: raw, error: String(e) },
+      });
     }
   });
 
-  pyChild.stderr.on('data', (d) => {
-    win?.webContents.send('signals:meta', { type: 'stderr', data: d.toString() });
+  pyChild.stderr.on("data", (d) => {
+    win?.webContents.send("signals:meta", {
+      type: "stderr",
+      data: d.toString(),
+    });
   });
 
-  pyChild.on('error', (err) => {
-    win?.webContents.send('signals:meta', { type: 'spawn_error', data: String(err) });
+  pyChild.on("error", (err) => {
+    win?.webContents.send("signals:meta", {
+      type: "spawn_error",
+      data: String(err),
+    });
   });
 
-  pyChild.on('close', (code) => {
-    win?.webContents.send('signals:meta', { type: 'exit', data: { code } });
+  pyChild.on("close", (code) => {
+    win?.webContents.send("signals:meta", { type: "exit", data: { code } });
     pyChild = null;
   });
 }
@@ -131,10 +142,10 @@ function spawnSignalBot() {
 function killSignalBot() {
   if (!pyChild) return;
   try {
-    if (process.platform === 'win32') {
-      spawn('taskkill', ['/PID', String(pyChild.pid), '/T', '/F']);
+    if (process.platform === "win32") {
+      spawn("taskkill", ["/PID", String(pyChild.pid), "/T", "/F"]);
     } else {
-      pyChild.kill('SIGTERM');
+      pyChild.kill("SIGTERM");
     }
   } catch {}
   pyChild = null;
@@ -143,133 +154,498 @@ function killSignalBot() {
 // إرسال أوامر stdin إلى بايثون (@CMD@ {...})
 function sendCmd(obj) {
   if (!pyChild || !pyChild.stdin || !pyChild.stdin.writable) {
-    throw new Error('Python process is not running');
+    throw new Error("Python process is not running");
   }
-  const line = '@CMD@ ' + JSON.stringify(obj) + '\n';
+  const line = "@CMD@ " + JSON.stringify(obj) + "\n";
   pyChild.stdin.write(line);
 }
 
+/* ===== Helpers: تأمين تشغيل البوت قبل أي IPC ===== */
+function ensureBot() {
+  if (!pyChild) spawnSignalBot();
+  return !!pyChild;
+}
+async function ensureBotStarted(timeoutMs = 5000) {
+  if (ensureBot()) return true;
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs) {
+    if (pyChild && pyChild.stdin && pyChild.stdin.writable) return true;
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  return !!(pyChild && pyChild.stdin && pyChild.stdin.writable);
+}
+
 /* ===== IPC: Signals (تيليجرام) ===== */
-ipcMain.handle('signals:start', async () => { spawnSignalBot(); return true; });
-ipcMain.handle('signals:stop',  async () => { killSignalBot();  return true; });
+ipcMain.handle("signals:start", async () => {
+  spawnSignalBot();
+  return true;
+});
+ipcMain.handle("signals:stop", async () => {
+  killSignalBot();
+  return true;
+});
 
-// قناة عامة (تبقى موجودة للاستخدام الحر)
-ipcMain.handle('signals:cmd', async (_e, obj) => { sendCmd(obj); return true; });
+ipcMain.handle("signals:cmd", async (_e, obj) => {
+  const ok = await ensureBotStarted();
+  if (!ok) {
+    win?.webContents.send("signals:meta", {
+      type: "spawn_error",
+      data: "Python process is not running (auto-start failed)",
+    });
+    return { ok: false, error: "py_not_running" };
+  }
+  try {
+    sendCmd(obj);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
+});
 
-// قنوات مختصرة مهمّة
-ipcMain.handle('signals:setTargets', async (_e, list) => { sendCmd({ op: 'set_targets', usernames: list }); return true; });
-ipcMain.handle('signals:listTargets', async () => { sendCmd({ op: 'list_targets' }); return true; });
-ipcMain.handle('signals:code', async (_e, code) => { sendCmd({ op: 'code', code }); return true; });
-ipcMain.handle('signals:password', async (_e, password) => { sendCmd({ op: 'password', password }); return true; });
-ipcMain.handle('signals:enter', async (_e, signal) => { sendCmd({ op: 'enter', signal }); return true; });
+ipcMain.handle("signals:setTargets", async (_e, list) => {
+  const ok = await ensureBotStarted();
+  if (!ok) return { ok: false, error: "py_not_running" };
+  sendCmd({ op: "set_targets", usernames: list });
+  return { ok: true };
+});
+ipcMain.handle("signals:listTargets", async () => {
+  const ok = await ensureBotStarted();
+  if (!ok) return { ok: false, error: "py_not_running" };
+  sendCmd({ op: "list_targets" });
+  return { ok: true };
+});
+ipcMain.handle("signals:code", async (_e, code) => {
+  const ok = await ensureBotStarted();
+  if (!ok) return { ok: false, error: "py_not_running" };
+  sendCmd({ op: "code", code });
+  return { ok: true };
+});
+ipcMain.handle("signals:password", async (_e, password) => {
+  const ok = await ensureBotStarted();
+  if (!ok) return { ok: false, error: "py_not_running" };
+  sendCmd({ op: "password", password });
+  return { ok: true };
+});
+ipcMain.handle("signals:enter", async (_e, signal) => {
+  const ok = await ensureBotStarted();
+  if (!ok) return { ok: false, error: "py_not_running" };
+  sendCmd({ op: "enter", signal });
+  return { ok: true };
+});
 
-/* ===== IPC: Binance (Mainnet فقط) ===== */
-/* تخزين بسيط بالذاكرة — استبدله لاحقًا بـ electron-store/keytar إذا رغبت */
-const mem = { pub: null, priv: null };
+/* ======== تخزين Binance عبر lowdb (JSON) مع تشفير السر ======== */
+// lowdb v1 (CommonJS)
+const low = require("lowdb");
+const FileSync = require("lowdb/adapters/FileSync");
 
+function userDataPath() {
+  try {
+    return app.getPath("userData");
+  } catch {
+    return path.join(__dirname, ".");
+  }
+}
+function dbFilePath() {
+  return path.join(userDataPath(), "store.json");
+}
+
+let db;
+function getDB() {
+  if (!db) {
+    const adapter = new FileSync(dbFilePath());
+    db = low(adapter);
+    db.defaults({ binance: { pub: null, priv: null } }).write();
+  }
+  return db;
+}
+
+// مفتاح تشفير محلي (يُنشأ مرة واحدة)
+function keyPath() {
+  return path.join(userDataPath(), "appkey.bin");
+}
+function getOrCreateKey() {
+  try {
+    return fs.readFileSync(keyPath());
+  } catch {
+    const k = crypto.randomBytes(32); // AES-256
+    fs.writeFileSync(keyPath(), k);
+    return k;
+  }
+}
+function encSecret(plain) {
+  const key = getOrCreateKey();
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
+  const c = Buffer.concat([
+    cipher.update(String(plain), "utf8"),
+    cipher.final(),
+  ]);
+  const tag = cipher.getAuthTag();
+  return Buffer.concat([iv, tag, c]).toString("base64"); // [IV(12)][TAG(16)][DATA]
+}
+function decSecret(b64) {
+  if (!b64) return "";
+  const buf = Buffer.from(b64, "base64");
+  const iv = buf.slice(0, 12);
+  const tag = buf.slice(12, 28);
+  const dat = buf.slice(28);
+  const key = getOrCreateKey();
+  const dec = crypto.createDecipheriv("aes-256-gcm", key, iv);
+  dec.setAuthTag(tag);
+  return Buffer.concat([dec.update(dat), dec.final()]).toString("utf8");
+}
+
+/* ===== Helpers لبينانس ===== */
 function baseUrlOf(domain, mode) {
-  if (domain === 'binance.us') return 'https://api.binance.us'; // Spot فقط
-  return mode === 'futures' ? 'https://fapi.binance.com' : 'https://api.binance.com';
+  if (domain === "binance.us") return "https://api.binance.us"; // Spot فقط
+  return mode === "futures"
+    ? "https://fapi.binance.com"
+    : "https://api.binance.com";
 }
 function signUrl({ baseUrl, path, params, secret }) {
   const usp = new URLSearchParams(params);
-  const sig = crypto.createHmac('sha256', secret).update(usp.toString()).digest('hex');
+  const sig = crypto
+    .createHmac("sha256", secret)
+    .update(usp.toString())
+    .digest("hex");
   return `${baseUrl}${path}?${usp.toString()}&signature=${sig}`;
 }
 function agentOf(proxy) {
   if (!proxy || !HttpsProxyAgent) return undefined;
-  try { return new HttpsProxyAgent(proxy); } catch { return undefined; }
+  try {
+    return new HttpsProxyAgent(proxy);
+  } catch {
+    return undefined;
+  }
 }
 
-
-ipcMain.handle('net:publicIP', async (_e, proxy) => {
+/* === IP عمومي (يستخدم proxy لو متوفر) === */
+ipcMain.handle("net:publicIP", async (_e, proxy) => {
   try {
-    const agent = agentOf?.(proxy)
-    const r = await fetch('https://api.ipify.org?format=json', { agent })
-    const j = await r.json()
-    return { ok: true, ip: j.ip }
+    const agent = agentOf?.(proxy);
+    const r = await fetch("https://api.ipify.org?format=json", { agent });
+    const j = await r.json();
+    return { ok: true, ip: j.ip };
   } catch (e) {
-    return { ok: false, error: String(e) }
+    return { ok: false, error: String(e) };
   }
-})
+});
 
-ipcMain.handle('binance:update', async (_e, patch = {}) => {
-  if (!mem.pub || !mem.priv) return { ok: false, error: 'لا توجد مفاتيح محفوظة؛ احفظ أولاً.' };
+/* === حفظ الإعدادات (JSON + تشفير السر) — لا نعيد السر للواجهة === */
+ipcMain.handle("binance:save", async (_e, cfg) => {
+  try {
+    if (!cfg?.apiKey || !cfg?.apiSecret)
+      return { ok: false, error: "Missing API key/secret" };
+    if (cfg.domain === "binance.us" && cfg.mode === "futures")
+      return { ok: false, error: "Futures غير مدعومة على binance.us" };
 
-  const domain = patch.domain ?? mem.pub.domain;
-  const mode   = patch.mode   ?? mem.pub.mode;
+    const pub = {
+      apiKey: cfg.apiKey,
+      domain: cfg.domain || "binance.com",
+      mode: cfg.mode || "spot",
+      recvWindow: Number(cfg.recvWindow) || 5000,
+      proxy: cfg.proxy || "",
+    };
+    const priv = { apiSecretEnc: encSecret(cfg.apiSecret) };
 
-  if (domain === 'binance.us' && mode === 'futures') {
-    return { ok: false, error: 'Futures غير مدعومة على binance.us' };
+    const _db = getDB();
+    _db.set("binance.pub", pub).write();
+    _db.set("binance.priv", priv).write();
+
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: String(e) };
   }
-
-  mem.pub = {
-    ...mem.pub,
-    domain,
-    mode,
-    recvWindow: Number(patch.recvWindow ?? mem.pub.recvWindow ?? 5000),
-    proxy: patch.proxy ?? mem.pub.proxy ?? '',
-  };
-  return { ok: true, pub: mem.pub };
 });
 
-// تحويل سريع وثابت إلى Binance.US + Spot
-ipcMain.handle('binance:switchToUS', async () => {
-  if (!mem.pub || !mem.priv) return { ok: false, error: 'لا توجد مفاتيح محفوظة؛ احفظ أولاً.' };
-  mem.pub.domain = 'binance.us';
-  mem.pub.mode   = 'spot';
-  return { ok: true, pub: mem.pub };
+/* === تحميل الإعدادات (بدون إعادة السر) === */
+ipcMain.handle("binance:load", async () => {
+  try {
+    const _db = getDB();
+    const pub = _db.get("binance.pub").value() || {
+      apiKey: "",
+      domain: "binance.com",
+      mode: "spot",
+      recvWindow: 5000,
+      proxy: "",
+    };
+    return pub;
+  } catch (e) {
+    return {
+      apiKey: "",
+      domain: "binance.com",
+      mode: "spot",
+      recvWindow: 5000,
+      proxy: "",
+      error: String(e),
+    };
+  }
 });
 
-// حفظ الإعدادات (لا نُعيد السر للواجهة)
-ipcMain.handle('binance:save', async (_e, cfg) => {
-  if (!cfg?.apiKey || !cfg?.apiSecret) throw new Error('Missing API key/secret');
-  if (cfg.domain === 'binance.us' && cfg.mode === 'futures') throw new Error('Futures غير مدعومة على binance.us');
-  mem.pub = {
-    apiKey: cfg.apiKey,
-    domain: cfg.domain || 'binance.com',
-    mode: cfg.mode || 'spot',
-    recvWindow: Number(cfg.recvWindow) || 5000,
-    proxy: cfg.proxy || ''
-  };
-  mem.priv = { apiSecret: cfg.apiSecret };
-  return { ok: true };
+/* === تحديث عام (domain/mode/recvWindow/proxy) === */
+ipcMain.handle("binance:update", async (_e, patch = {}) => {
+  try {
+    const _db = getDB();
+    const cur = _db.get("binance.pub").value();
+    if (!cur) return { ok: false, error: "لا توجد مفاتيح محفوظة؛ احفظ أولاً." };
+
+    const domain = patch.domain ?? cur.domain;
+    const mode = patch.mode ?? cur.mode;
+    if (domain === "binance.us" && mode === "futures")
+      return { ok: false, error: "Futures غير مدعومة على binance.us" };
+
+    const next = {
+      ...cur,
+      domain,
+      mode,
+      recvWindow: Number(patch.recvWindow ?? cur.recvWindow ?? 5000),
+      proxy: patch.proxy ?? cur.proxy ?? "",
+    };
+    _db.set("binance.pub", next).write();
+    return { ok: true, pub: next };
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
 });
 
-// تحميل (بدون السر)
-ipcMain.handle('binance:load', async () => {
-  return mem.pub || { apiKey: '', domain: 'binance.com', mode: 'spot', recvWindow: 5000, proxy: '' };
+/* === تحويل سريع إلى binance.us/spot === */
+ipcMain.handle("binance:switchToUS", async () => {
+  try {
+    const _db = getDB();
+    const cur = _db.get("binance.pub").value();
+    if (!cur) return { ok: false, error: "لا توجد مفاتيح محفوظة؛ احفظ أولاً." };
+    const next = { ...cur, domain: "binance.us", mode: "spot" };
+    _db.set("binance.pub", next).write();
+    return { ok: true, pub: next };
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
 });
 
-// اختبار اتصال موقّع على Mainnet
-ipcMain.handle('binance:test', async (_e, inCfg) => {
-  const pub  = mem.pub  || {};
-  const priv = mem.priv || {};
-  const apiKey     = inCfg?.apiKey     || pub.apiKey;
-  const apiSecret  = inCfg?.apiSecret  || priv.apiSecret;
-  const domain     = inCfg?.domain     || pub.domain || 'binance.com';
-  const mode       = inCfg?.mode       || pub.mode   || 'spot';
-  const recvWindow = Number(inCfg?.recvWindow ?? pub.recvWindow ?? 5000);
-  const proxy      = inCfg?.proxy      || pub.proxy || '';
+/* === رصيد الحساب فقط (Spot/Futures) === */
+ipcMain.handle("binance:balances", async () => {
+  const _db = getDB();
+  const pub = _db.get("binance.pub").value();
+  const priv = _db.get("binance.priv").value();
+  if (!pub || !priv)
+    return { ok: false, error: "لا توجد مفاتيح محفوظة؛ احفظ أولاً." };
 
-  if (!apiKey || !apiSecret) return { ok: false, error: 'API key/secret غير متوفر' };
-  if (domain === 'binance.us' && mode === 'futures') return { ok: false, error: 'Futures غير مدعومة على binance.us' };
-
+  const apiKey = pub.apiKey;
+  const apiSecret = decSecret(priv.apiSecretEnc);
+  const domain = pub.domain || "binance.com";
+  const mode = pub.mode || "spot";
+  const recvWindow = Number(pub.recvWindow) || 5000;
+  const proxy = pub.proxy || "";
   const baseUrl = baseUrlOf(domain, mode);
-  const path = mode === 'futures' ? '/fapi/v2/balance' : '/api/v3/account';
-  const url = signUrl({ baseUrl, path, secret: apiSecret, params: { timestamp: Date.now(), recvWindow } });
+  const agent = agentOf(proxy);
 
   try {
-    const res = await fetch(url, { headers: { 'X-MBX-APIKEY': apiKey }, agent: agentOf(proxy) });
-    const text = await res.text();
-    let json; try { json = JSON.parse(text); } catch { json = { raw: text }; }
-    if (!res.ok) {
-      return { ok: false, error: json?.msg || res.statusText || 'HTTP Error', status: res.status, body: json };
+    if (mode === "futures") {
+      const url = signUrl({
+        baseUrl,
+        path: "/fapi/v2/balance",
+        secret: apiSecret,
+        params: { timestamp: Date.now(), recvWindow },
+      });
+      const res = await fetch(url, {
+        headers: { "X-MBX-APIKEY": apiKey },
+        agent,
+      });
+      const data = await res.json();
+      if (!res.ok)
+        return {
+          ok: false,
+          error: data?.msg || res.statusText,
+          status: res.status,
+        };
+
+      const balances = (Array.isArray(data) ? data : [])
+        .filter(
+          (x) => Number(x.balance) > 0 || Number(x.crossWalletBalance) > 0
+        )
+        .map((x) => ({
+          asset: x.asset,
+          free: x.balance,
+          locked: 0,
+          crossWallet: x.crossWalletBalance,
+        }));
+
+      return { ok: true, domain, mode, balances };
+    } else {
+      const url = signUrl({
+        baseUrl,
+        path: "/api/v3/account",
+        secret: apiSecret,
+        params: { timestamp: Date.now(), recvWindow },
+      });
+      const res = await fetch(url, {
+        headers: { "X-MBX-APIKEY": apiKey },
+        agent,
+      });
+      const data = await res.json();
+      if (!res.ok)
+        return {
+          ok: false,
+          error: data?.msg || res.statusText,
+          status: res.status,
+        };
+
+      const balances = (data?.balances || [])
+        .filter((b) => Number(b.free) > 0 || Number(b.locked) > 0)
+        .map((b) => ({ asset: b.asset, free: b.free, locked: b.locked }));
+
+      return { ok: true, domain, mode, balances };
     }
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
+});
+
+/* === نظرة عامة: ارجاع الرصيد + مُعرّف الحساب (لا يوجد اسم عبر API) === */
+ipcMain.handle("binance:overview", async () => {
+  const _db = getDB();
+  const pub = _db.get("binance.pub").value();
+  const priv = _db.get("binance.priv").value();
+  if (!pub || !priv)
+    return { ok: false, error: "لا توجد مفاتيح محفوظة؛ احفظ أولاً." };
+
+  const apiKey = pub.apiKey;
+  const apiSecret = decSecret(priv.apiSecretEnc);
+  const domain = pub.domain || "binance.com";
+  const mode = pub.mode || "spot";
+  const recvWindow = Number(pub.recvWindow) || 5000;
+  const proxy = pub.proxy || "";
+  const baseUrl = baseUrlOf(domain, mode);
+  const agent = agentOf(proxy);
+
+  try {
+    let balances = [];
+    if (mode === "futures") {
+      const url = signUrl({
+        baseUrl,
+        path: "/fapi/v2/balance",
+        secret: apiSecret,
+        params: { timestamp: Date.now(), recvWindow },
+      });
+      const res = await fetch(url, {
+        headers: { "X-MBX-APIKEY": apiKey },
+        agent,
+      });
+      const data = await res.json();
+      if (!res.ok)
+        return {
+          ok: false,
+          error: data?.msg || res.statusText,
+          status: res.status,
+        };
+
+      balances = (Array.isArray(data) ? data : [])
+        .filter(
+          (x) => Number(x.balance) > 0 || Number(x.crossWalletBalance) > 0
+        )
+        .map((x) => ({
+          asset: x.asset,
+          free: x.balance,
+          locked: 0,
+          crossWallet: x.crossWalletBalance,
+        }));
+    } else {
+      const url = signUrl({
+        baseUrl,
+        path: "/api/v3/account",
+        secret: apiSecret,
+        params: { timestamp: Date.now(), recvWindow },
+      });
+      const res = await fetch(url, {
+        headers: { "X-MBX-APIKEY": apiKey },
+        agent,
+      });
+      const data = await res.json();
+      if (!res.ok)
+        return {
+          ok: false,
+          error: data?.msg || res.statusText,
+          status: res.status,
+        };
+
+      balances = (data?.balances || [])
+        .filter((b) => Number(b.free) > 0 || Number(b.locked) > 0)
+        .map((b) => ({ asset: b.asset, free: b.free, locked: b.locked }));
+    }
+
     return {
       ok: true,
-      baseUrl, mode, domain,
-      sample: Array.isArray(json) ? json.slice(0, 3) : { keys: Object.keys(json).slice(0, 8) }
+      account: {
+        domain,
+        mode,
+        label: `${domain} • ${String(mode).toUpperCase()}`,
+        id: `…${String(apiKey).slice(-6)}`, // بديل لاسم المستخدم (غير متاح عبر API)
+      },
+      balances,
+    };
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
+});
+
+/* === اختبار اتصال موقعّ (Spot/Futures) بالاعتماد على DB إن لم تُمرّر مفاتيح === */
+ipcMain.handle("binance:test", async (_e, inCfg) => {
+  try {
+    const _db = getDB();
+    const pub = _db.get("binance.pub").value() || {};
+    const priv = _db.get("binance.priv").value() || {};
+
+    const apiKey = inCfg?.apiKey || pub.apiKey;
+    const apiSecret =
+      inCfg?.apiSecret ||
+      (priv.apiSecretEnc ? decSecret(priv.apiSecretEnc) : undefined);
+    const domain = inCfg?.domain || pub.domain || "binance.com";
+    const mode = inCfg?.mode || pub.mode || "spot";
+    const recvWindow = Number(inCfg?.recvWindow ?? pub.recvWindow ?? 5000);
+    const proxy = inCfg?.proxy || pub.proxy || "";
+
+    if (!apiKey || !apiSecret)
+      return { ok: false, error: "API key/secret غير متوفر" };
+    if (domain === "binance.us" && mode === "futures")
+      return { ok: false, error: "Futures غير مدعومة على binance.us" };
+
+    const baseUrl = baseUrlOf(domain, mode);
+    const path = mode === "futures" ? "/fapi/v2/balance" : "/api/v3/account";
+    const url = signUrl({
+      baseUrl,
+      path,
+      secret: apiSecret,
+      params: { timestamp: Date.now(), recvWindow },
+    });
+
+    const res = await fetch(url, {
+      headers: { "X-MBX-APIKEY": apiKey },
+      agent: agentOf(proxy),
+    });
+    const text = await res.text();
+    let json;
+    try {
+      json = JSON.parse(text);
+    } catch {
+      json = { raw: text };
+    }
+
+    if (!res.ok)
+      return {
+        ok: false,
+        error: json?.msg || res.statusText || "HTTP Error",
+        status: res.status,
+        body: json,
+      };
+
+    return {
+      ok: true,
+      baseUrl,
+      mode,
+      domain,
+      sample: Array.isArray(json)
+        ? json.slice(0, 3)
+        : { keys: Object.keys(json).slice(0, 8) },
     };
   } catch (e) {
     return { ok: false, error: String(e) };
@@ -283,25 +659,24 @@ function createWindow() {
     height: 840,
     webPreferences: {
       contextIsolation: true,
-      preload: path.join(__dirname, 'preload.cjs'), // تأكد المسار صحيح عندك
-    }
+      preload: path.join(__dirname, "preload.cjs"),
+    },
   });
 
-  if (!app.isPackaged) win.loadURL('http://localhost:5173');
-  else win.loadFile(path.join(app.getAppPath(), 'dist', 'index.html'));
+  if (!app.isPackaged) win.loadURL("http://localhost:5173");
+  else win.loadFile(path.join(app.getAppPath(), "dist", "index.html"));
 
-  win.webContents.once('did-finish-load', () => spawnSignalBot());
+  win.webContents.once("did-finish-load", () => spawnSignalBot());
 }
 
 app.whenReady().then(createWindow);
-app.on('before-quit', killSignalBot);
-app.on('window-all-closed', () => {
-  // لو حابّ تُغلق البوت عند إغلاق كل النوافذ (على ويندوز/لينكس)
-  if (process.platform !== 'darwin') {
+app.on("before-quit", killSignalBot);
+app.on("window-all-closed", () => {
+  if (process.platform !== "darwin") {
     killSignalBot();
     app.quit();
   }
 });
-app.on('activate', () => {
+app.on("activate", () => {
   if (BrowserWindow.getAllWindows().length === 0) createWindow();
 });
