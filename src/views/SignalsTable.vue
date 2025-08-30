@@ -31,12 +31,11 @@
       </div>
 
       <!-- عرض IP -->
-      <div class="mb-3 p-3 border rounded-xl bg-white/70 flex items-center gap-2">
-  <span class="text-sm">IP: <b>{{ publicIP || '—' }}</b></span>
-  <button class="px-2 py-1 rounded-lg border" :disabled="busy" @click="refreshIP">🔁 تحديث IP</button>
-  <button class="px-2 py-1 rounded-lg border" :disabled="!publicIP" @click="copyMyIP">📋 نسخ</button>
-  <span class="ml-auto text-xs text-slate-600">(يظهر هنا لو كل شيء تمام)</span>
-</div>
+      <div class="ml-auto flex items-center gap-2">
+        <span class="text-xs">IP: <b>{{ publicIP || '—' }}</b></span>
+        <button class="px-2 py-1 rounded-lg border" :disabled="busy" @click="refreshIP">🔁 تحديث IP</button>
+        <button class="px-2 py-1 rounded-lg border" :disabled="!publicIP" @click="copyMyIP">📋 نسخ</button>
+      </div>
 
       <span class="w-full text-xs text-slate-600 mt-2">{{ binanceStatus }}</span>
     </div>
@@ -218,18 +217,20 @@ async function loadBinanceCfg(){
 
 /* جلب/تحديث الـ IP بفولباكات متعددة */
 async function refreshIP(){
-  try {
+  try{
     publicIP.value = ''
-    // backend (اختياري): لو عندك window.net.publicIP
-    if (window.net?.publicIP) {
-      const r = await window.net.publicIP('')
-      if (r?.ok && r.ip) {
+
+    // (اختياري) من الخلفية لو متوفّر ويدعم Proxy
+    if(window.net?.publicIP){
+      const r = await window.net.publicIP(binance.proxy || '')
+      if(r?.ok && r.ip){
         publicIP.value = r.ip
         metaLog.value.push('Public IP (backend): ' + r.ip)
         return
       }
     }
-    // واجهة: ipify -> icanhazip -> ifconfig.me
+
+    // فولباك من الواجهة
     const providers = [
       async () => (await (await fetch('https://api.ipify.org?format=json')).json()).ip,
       async () => (await (await fetch('https://ipv4.icanhazip.com')).text()).trim(),
@@ -242,21 +243,8 @@ async function refreshIP(){
       } catch {}
     }
     throw new Error('No IP service responded')
-  } catch(e) {
+  }catch(e){
     metaLog.value.push('IP fetch error: ' + String(e))
-  }
-}
-
-// زر النسخ
-async function copyMyIP(){
-  try {
-    if (!publicIP.value) await refreshIP()
-    if (!publicIP.value) throw new Error('لا يوجد IP متاح')
-    await navigator.clipboard.writeText(publicIP.value)
-    metaLog.value.push('Public IP copied: ' + publicIP.value)
-    alert('تم النسخ: ' + publicIP.value)
-  } catch (e) {
-    alert('تعذّر نسخ IP: ' + String(e))
   }
 }
 
@@ -355,7 +343,7 @@ onMounted(async () => {
     refreshTargets()
     await loadBinanceCfg()
   }
-    try { await refreshIP() } catch {}  // جلب الـ IP دائماً
+  await refreshIP()  // جلب الـ IP دائماً
 })
 
 onBeforeUnmount(() => {
