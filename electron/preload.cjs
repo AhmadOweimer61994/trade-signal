@@ -129,15 +129,22 @@ const binanceAPI = {
   save: (cfg) => ipcRenderer.invoke("binance:save", cfg), // يحفظ بالمخزن (lowdb) والسر مشفّر
   load: () => ipcRenderer.invoke("binance:load"), // يرجّع الإعدادات العامة بدون السر
   update: (patch) => ipcRenderer.invoke("binance:update", patch), // تعديل domain/mode/recvWindow/proxy
-  test: (cfg) => ipcRenderer.invoke("binance:test", cfg), // اختبار اتصال موقّع
+  test: () => ipcRenderer.invoke("binance:test"), // اختبار اتصال موقّع
   switchToUS: () => ipcRenderer.invoke("binance:switchToUS"), // تحويل سريع إلى binance.us + spot
   overview: () => ipcRenderer.invoke("binance:overview"), // ⬅️ مهم
   balances: () => ipcRenderer.invoke("binance:balances"),
+
+  price: (symbol) => ipcRenderer.invoke("binance:price", { symbol }),
+  order: (payload) => ipcRenderer.invoke("binance:order", payload),
+  exchangeInfo: (symbol) =>
+    ipcRenderer.invoke("binance:exchangeInfo", { symbol }),
+  oco: (payload) => ipcRenderer.invoke("binance:oco", payload),
 };
 
 /* ------------ Net API (IP عمومي) ------------ */
 const netAPI = {
-  publicIP: (proxy) => ipcRenderer.invoke("net:publicIP", proxy || ""),
+  publicIP: (proxy) =>
+    ipcRenderer.invoke("net:publicIP", { proxy: proxy || "" }),
 };
 
 /* ------------ (اختياري) توافق مع واجهات قديمة: posAPI.bot ------------ */

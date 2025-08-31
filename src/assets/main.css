@@ -1,3 +1,100 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* ألوان ثابتة */
+:root {
+  --denim-900: #131b23;
+  --denim-800: #1a2530;
+  --denim-700: #22303c;
+  --denim-600: #2b3b48;
+  --gold-600: #b88a2b;
+  --gold-500: #d4ae4a;
+  --gold-400: #e4c56a;
+}
+
+/* مكوّنات جاهزة */
+@layer components {
+  /* خلفية دنيم خفيفة مع جراديانت */
+  .denim-surface {
+    background: radial-gradient(
+        1200px 800px at 20% 10%,
+        rgba(255, 255, 255, 0.03),
+        transparent 60%
+      ),
+      radial-gradient(
+        1200px 800px at 80% 90%,
+        rgba(255, 255, 255, 0.03),
+        transparent 60%
+      ),
+      linear-gradient(
+        135deg,
+        var(--denim-600),
+        var(--denim-800) 55%,
+        var(--denim-900)
+      );
+  }
+
+  /* بطاقة دنيم (للبلوكات) */
+  .card-denim {
+    @apply rounded-2xl border shadow-lg/50;
+    background: linear-gradient(
+        180deg,
+        rgba(255, 255, 255, 0.04),
+        rgba(0, 0, 0, 0.06)
+      ),
+      linear-gradient(135deg, #2b3b48, #1a2530);
+    border-color: color-mix(in oklab, var(--gold-600) 28%, transparent);
+  }
+
+  /* نص/زخرفة ذهبية */
+  .text-gold {
+    background-image: linear-gradient(180deg, var(--gold-400), var(--gold-600));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    text-shadow: 0 1px 0 #5d4512, 0 0 10px rgba(212, 174, 74, 0.25);
+  }
+
+  /* إطار ذهبي ناعم */
+  .border-gold {
+    border-color: color-mix(in oklab, var(--gold-500) 45%, transparent);
+    box-shadow: inset 0 0 0 1px rgba(232, 205, 120, 0.15);
+  }
+
+  /* شريط زخرفي أسفل العنصر (يشبه التطريز) */
+  .trim-braid {
+    position: relative;
+    overflow: hidden;
+  }
+  .trim-braid::after {
+    content: "";
+    position: absolute;
+    left: 12px;
+    right: 12px;
+    bottom: 10px;
+    height: 8px;
+    border-radius: 6px;
+    background: repeating-linear-gradient(
+      -45deg,
+      var(--gold-600) 0 6px,
+      #5d4512 6px 12px
+    );
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+    opacity: 0.9;
+  }
+}
+
+/* أدوات صغيرة */
+@layer utilities {
+  .shadow-soft {
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+  }
+  .bg-denim {
+    background-color: var(--denim-800);
+  }
+  .ring-gold {
+    box-shadow: 0 0 0 2px color-mix(in oklab, var(--gold-500) 35%, transparent);
+  }
+}

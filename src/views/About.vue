@@ -1,62 +1,77 @@
 <template>
-  <div class="min-h-screen p-6">
-    <div class="mx-auto w-full max-w-6xl grid gap-6 xl:grid-cols-[2fr_1fr]">
-      <!-- بطاقة: المعرّف + الرصيد -->
-      <!-- نظرة عامة على الحساب -->
-      <!-- خانة USDT صغيرة فقط -->
+  <div
+    class="min-h-screen py-6 px-0 bg-gradient-to-br from-cloak-900 via-cloak-800 to-cloak-900 text-slate-100"
+  >
+    <div class="w-full grid gap-6 xl:grid-cols-[2fr_1fr]">
       <!-- خانة USDT صغيرة -->
-      <div class="mt-4 p-3 border rounded-2xl bg-emerald-50/60">
-        <div class="text-xs text-emerald-700">الرصيد (USDT)</div>
+      <div
+        class="mt-4 p-3 rounded-2xl border bg-cloak-700/50 border-gold-500/30 shadow-sm"
+      >
+        <div class="text-xs text-gold-400">الرصيد (USDT)</div>
         <div class="flex items-baseline gap-2">
-          <div class="text-2xl font-semibold">{{ formatNum(usdtTotal) }}</div>
-          <div class="text-[11px] text-emerald-700">
+          <div class="text-2xl font-semibold text-gold-300">
+            {{ formatNum(usdtTotal) }}
+          </div>
+          <div class="text-[11px] text-gold-400/90">
             Free: {{ formatNum(usdtFree) }} • Hold: {{ formatNum(usdtHold) }}
           </div>
         </div>
       </div>
 
-      <div class="mt-4 p-3 border rounded-2xl bg-slate-50">
+      <!-- نظرة عامة على الحساب -->
+      <div
+        class="mt-4 p-3 rounded-2xl border bg-cloak-800/70 border-cloak-600/40"
+      >
         <div class="text-sm mb-1">
-          الحساب: <b>{{ overview.label || "—" }}</b>
-          <span v-if="overview.id" class="text-xs text-slate-500"
+          الحساب: <b class="text-gold-300">{{ overview.label || "—" }}</b>
+          <span v-if="overview.id" class="text-xs text-slate-400"
             >({{ overview.id }})</span
           >
         </div>
-        <div class="text-[11px] text-slate-500 mb-2">
+        <div class="text-[11px] text-slate-400 mb-2">
           * Binance API لا يوفّر اسم صاحب الحساب عبر المفاتيح. نعرض مُعرّفًا
           مختصرًا بدلًا منه.
         </div>
 
-        <div v-if="overview.balances.length" class="max-h-44 overflow-auto">
+        <div
+          v-if="overview.balances.length"
+          class="max-h-44 overflow-auto rounded-xl border border-cloak-600/30"
+        >
           <table class="w-full text-xs">
-            <thead>
-              <tr>
-                <th class="text-left p-1">Asset</th>
-                <th class="text-right p-1">Free</th>
-                <th class="text-right p-1">Locked</th>
+            <thead class="bg-cloak-700/50">
+              <tr class="[&>th]:p-2 [&>th]:font-medium [&>th]:text-left">
+                <th>Asset</th>
+                <th class="text-right">Free</th>
+                <th class="text-right">Locked</th>
               </tr>
             </thead>
-            <tbody>
-              <tr v-for="b in overview.balances" :key="b.asset">
-                <td class="p-1">{{ b.asset }}</td>
-                <td class="p-1 text-right">{{ b.free }}</td>
-                <td class="p-1 text-right">{{ b.locked ?? 0 }}</td>
+            <tbody class="divide-y divide-cloak-700/40">
+              <tr
+                v-for="b in overview.balances"
+                :key="b.asset"
+                class="hover:bg-cloak-700/30 transition-colors"
+              >
+                <td class="p-2">{{ b.asset }}</td>
+                <td class="p-2 text-right">{{ b.free }}</td>
+                <td class="p-2 text-right">{{ b.locked ?? 0 }}</td>
               </tr>
             </tbody>
           </table>
         </div>
-        <div v-else class="text-xs text-slate-500">
+        <div v-else class="text-xs text-slate-400">
           لا توجد أرصدة ظاهرة (قد تكون 0).
         </div>
       </div>
 
       <!-- النموذج -->
       <section
-        class="bg-white rounded-2xl shadow border relative overflow-hidden"
+        class="bg-cloak-800/70 text-slate-100 rounded-2xl shadow border border-cloak-600/40 relative overflow-hidden"
       >
-        <div class="px-6 pt-6 pb-3 border-b">
-          <h1 class="text-2xl font-semibold">إعدادات بايننس (Mainnet فقط)</h1>
-          <p class="text-slate-600 mt-1">
+        <div class="px-6 pt-6 pb-3 border-b border-cloak-600/40">
+          <h1 class="text-2xl font-semibold text-gold-300">
+            إعدادات بايننس (Mainnet فقط)
+          </h1>
+          <p class="text-slate-300 mt-1">
             أدخل مفاتيحك — الاتصال يكون فورًا على الشبكة الحية.
           </p>
         </div>
@@ -66,8 +81,8 @@
           class="mx-6 mt-4 p-3 rounded-xl border"
           :class="
             notice.ok
-              ? 'bg-green-50 border-green-200 text-green-800'
-              : 'bg-amber-50 border-amber-200 text-amber-900'
+              ? 'bg-emerald-900/30 border-emerald-700/50 text-emerald-200'
+              : 'bg-amber-900/30 border-amber-700/50 text-amber-200'
           "
         >
           {{ notice.msg }}
@@ -76,16 +91,16 @@
         <form class="p-6 space-y-8" @submit.prevent="saveThenConnect">
           <!-- المفاتيح -->
           <div>
-            <h2 class="text-lg font-semibold mb-3">المفاتيح</h2>
+            <h2 class="text-lg font-semibold mb-3 text-gold-300">المفاتيح</h2>
             <div class="grid gap-4 md:grid-cols-2">
               <div>
                 <label class="block text-sm font-medium mb-1">API Key</label>
                 <input
                   v-model.trim="form.apiKey"
                   placeholder="BK3…"
-                  class="w-full px-4 py-3 border rounded-2xl text-base"
+                  class="w-full px-4 py-3 rounded-2xl text-base bg-cloak-900/50 border border-cloak-600/60 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-gold-500/60"
                 />
-                <p class="text-xs text-slate-500 mt-1">
+                <p class="text-xs text-slate-400 mt-1">
                   تأكد من الصلاحيات المناسبة (Spot/Futures).
                 </p>
               </div>
@@ -96,11 +111,11 @@
                     :type="showSecret ? 'text' : 'password'"
                     v-model.trim="form.apiSecret"
                     placeholder="••••••••"
-                    class="w-full px-4 py-3 border rounded-2xl text-base"
+                    class="w-full px-4 py-3 rounded-2xl text-base bg-cloak-900/50 border border-cloak-600/60 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-gold-500/60"
                   />
                   <button
                     type="button"
-                    class="px-3 py-2 border rounded-xl"
+                    class="px-3 py-2 rounded-xl border border-cloak-600/60 bg-cloak-900/40 hover:bg-cloak-800"
                     @click="showSecret = !showSecret"
                   >
                     {{ showSecret ? "إخفاء" : "إظهار" }}
@@ -111,14 +126,14 @@
                     id="rememberKeys"
                     type="checkbox"
                     v-model="rememberKeys"
-                    class="h-4 w-4"
+                    class="h-4 w-4 accent-gold-500"
                   />
-                  <label for="rememberKeys" class="text-xs text-slate-600">
+                  <label for="rememberKeys" class="text-xs text-slate-300">
                     تذكّر تعبئة المفاتيح في هذه الواجهة (يُخزَّن محليًا على هذا
                     الجهاز)
                   </label>
                 </div>
-                <p class="text-xs text-slate-500 mt-1">
+                <p class="text-xs text-slate-400 mt-1">
                   السر محفوظ مشفّرًا في الخلفية؛ الخيار أعلاه فقط لتعبئة الحقول
                   تلقائيًا محليًا.
                 </p>
@@ -128,18 +143,18 @@
 
           <!-- الشبكة (Mainnet فقط) -->
           <div>
-            <h2 class="text-lg font-semibold mb-3">الشبكة</h2>
+            <h2 class="text-lg font-semibold mb-3 text-gold-300">الشبكة</h2>
             <div class="grid gap-4 md:grid-cols-3">
               <div>
                 <label class="block text-sm font-medium mb-1">النطاق</label>
                 <select
                   v-model="form.domain"
-                  class="w-full px-4 py-3 border rounded-2xl text-base"
+                  class="w-full px-4 py-3 rounded-2xl text-base bg-cloak-900/50 border border-cloak-600/60 focus:outline-none focus:ring-2 focus:ring-gold-500/60"
                 >
                   <option value="binance.com">binance.com</option>
                   <option value="binance.us">binance.us</option>
                 </select>
-                <p class="text-xs text-slate-500 mt-1">
+                <p class="text-xs text-slate-400 mt-1">
                   binance.us عادةً بدون Futures.
                 </p>
               </div>
@@ -148,14 +163,14 @@
                 <select
                   v-model="form.mode"
                   :disabled="form.domain === 'binance.us'"
-                  class="w-full px-4 py-3 border rounded-2xl text-base"
+                  class="w-full px-4 py-3 rounded-2xl text-base bg-cloak-900/50 border border-cloak-600/60 disabled:opacity-60 focus:outline-none focus:ring-2 focus:ring-gold-500/60"
                 >
                   <option value="spot">Spot</option>
                   <option value="futures">USDT-M Futures</option>
                 </select>
                 <p
                   v-if="form.domain === 'binance.us'"
-                  class="text-xs text-amber-700 mt-1"
+                  class="text-xs text-amber-300 mt-1"
                 >
                   Futures غير مدعومة.
                 </p>
@@ -166,25 +181,25 @@
                 >
                 <input
                   :value="baseUrl"
-                  class="w-full px-4 py-3 border rounded-2xl text-base bg-slate-50"
+                  class="w-full px-4 py-3 rounded-2xl text-base bg-cloak-900/40 border border-cloak-600/60 text-slate-300"
                   readonly
                 />
-                <p class="text-xs text-slate-500 mt-1">
+                <p class="text-xs text-slate-400 mt-1">
                   العنوان يُحدّد تلقائياً حسب النطاق والوضع.
                 </p>
               </div>
             </div>
 
-            <!-- IP العمومي + أزرار تحديث/نسخ -->
+            <!-- IP العمومي -->
             <div
-              class="mt-4 p-3 border rounded-2xl bg-slate-50 flex flex-wrap items-center gap-2"
+              class="mt-4 p-3 rounded-2xl border bg-cloak-900/40 border-cloak-600/40 flex flex-wrap items-center gap-2"
             >
               <span class="text-sm"
-                >IP: <b>{{ publicIP || "—" }}</b></span
+                >IP: <b class="text-gold-300">{{ publicIP || "—" }}</b></span
               >
               <button
                 type="button"
-                class="px-3 py-1.5 rounded-xl border bg-white"
+                class="px-3 py-1.5 rounded-xl border border-cloak-600/60 bg-cloak-900/40 hover:bg-cloak-800 disabled:opacity-60"
                 :disabled="ipBusy"
                 @click="refreshIP"
               >
@@ -192,13 +207,13 @@
               </button>
               <button
                 type="button"
-                class="px-3 py-1.5 rounded-xl border bg-white"
+                class="px-3 py-1.5 rounded-xl border border-cloak-600/60 bg-cloak-900/40 hover:bg-cloak-800 disabled:opacity-60"
                 :disabled="!publicIP"
                 @click="copyIP"
               >
                 📋 نسخ
               </button>
-              <span class="ms-auto text-xs text-slate-500"
+              <span class="ms-auto text-xs text-slate-400"
                 >أضِف هذا الـ IP في Trusted IPs لمفتاحك إن كان مقيّدًا.</span
               >
             </div>
@@ -206,7 +221,9 @@
 
           <!-- متقدم -->
           <div>
-            <h2 class="text-lg font-semibold mb-3">خيارات متقدمة</h2>
+            <h2 class="text-lg font-semibold mb-3 text-gold-300">
+              خيارات متقدمة
+            </h2>
             <div class="grid gap-4 md:grid-cols-3">
               <div>
                 <label class="block text-sm font-medium mb-1"
@@ -217,7 +234,7 @@
                   type="number"
                   min="1000"
                   step="500"
-                  class="w-full px-4 py-3 border rounded-2xl text-base"
+                  class="w-full px-4 py-3 rounded-2xl text-base bg-cloak-900/50 border border-cloak-600/60 focus:outline-none focus:ring-2 focus:ring-gold-500/60"
                 />
               </div>
               <div class="md:col-span-2">
@@ -227,7 +244,7 @@
                 <input
                   v-model.trim="form.proxy"
                   placeholder="http://user:pass@host:port"
-                  class="w-full px-4 py-3 border rounded-2xl text-base"
+                  class="w-full px-4 py-3 rounded-2xl text-base bg-cloak-900/50 border border-cloak-600/60 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-gold-500/60"
                 />
               </div>
             </div>
@@ -238,30 +255,30 @@
 
         <!-- شريط إجراءات -->
         <div
-          class="sticky bottom-0 inset-x-0 bg-white/85 backdrop-blur border-t px-6 py-3 flex flex-wrap items-center gap-2"
+          class="sticky bottom-0 inset-x-0 bg-cloak-900/70 backdrop-blur border-t border-cloak-600/40 px-6 py-3 flex flex-wrap items-center gap-2"
         >
           <span
             class="text-sm me-auto"
-            :class="busy ? 'text-amber-600' : 'text-slate-500'"
+            :class="busy ? 'text-amber-300' : 'text-slate-400'"
           >
             {{ busy ? "جارٍ المعالجة…" : statusText }}
           </span>
           <button
-            class="px-4 py-2 rounded-xl border bg-white"
+            class="px-4 py-2 rounded-xl border border-cloak-600/60 bg-cloak-900/40 hover:bg-cloak-800"
             @click="connect"
             :disabled="busy"
           >
             🧩 اتصال الآن
           </button>
           <button
-            class="px-4 py-2 rounded-xl border bg-white"
+            class="px-4 py-2 rounded-xl border border-cloak-600/60 bg-cloak-900/40 hover:bg-cloak-800"
             @click="reset"
             :disabled="busy"
           >
             ↺ إعادة ضبط
           </button>
           <button
-            class="px-4 py-2 rounded-2xl border bg-black text-white"
+            class="px-4 py-2 rounded-2xl bg-gold-500 text-cloak-900 font-medium hover:bg-gold-400 disabled:opacity-60"
             @click="saveThenConnect"
             :disabled="busy"
           >
@@ -271,17 +288,21 @@
       </section>
 
       <!-- جانب -->
-      <aside class="bg-white rounded-2xl shadow border h-fit sticky top-6">
+      <aside
+        class="bg-cloak-800/70 rounded-2xl shadow border border-cloak-600/40 h-fit sticky top-6"
+      >
         <div class="p-6 space-y-5">
-          <h3 class="text-lg font-semibold">ملاحظات</h3>
-          <ul class="list-disc ms-5 text-slate-700 space-y-1 text-sm">
+          <h3 class="text-lg font-semibold text-gold-300">ملاحظات</h3>
+          <ul class="list-disc ms-5 text-slate-300 space-y-1 text-sm">
             <li>الاتصال دائمًا على Mainnet (لا يوجد Testnet هنا).</li>
             <li>
-              Spot Mainnet: <code>https://api.binance.com</code> |
-              <code>api.binance.us</code>
+              Spot Mainnet:
+              <code class="text-slate-200">https://api.binance.com</code> |
+              <code class="text-slate-200">api.binance.us</code>
             </li>
             <li>
-              Futures Mainnet (USDT-M): <code>https://fapi.binance.com</code>
+              Futures Mainnet (USDT-M):
+              <code class="text-slate-200">https://fapi.binance.com</code>
             </li>
             <li>
               لا تحفظ الأسرار في LocalStorage للإنتاج؛ استخدم تخزينًا مشفّرًا.

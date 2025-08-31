@@ -320,11 +320,13 @@ function agentOf(proxy) {
 }
 
 /* === IP عمومي (يستخدم proxy لو متوفر) === */
-ipcMain.handle("net:publicIP", async (_e, proxy) => {
+// === IP عمومي (يقبل إما string proxy أو كائن { proxy }) ===
+ipcMain.handle("net:publicIP", async (_e, arg) => {
+  const proxy = typeof arg === "string" ? arg : arg?.proxy || "";
   try {
     const agent = agentOf?.(proxy);
-    const r = await fetch("https://api.ipify.org?format=json", { agent });
-    const j = await r.json();
+    const res = await fetch("https://api.ipify.org?format=json", { agent });
+    const j = await res.json();
     return { ok: true, ip: j.ip };
   } catch (e) {
     return { ok: false, error: String(e) };
@@ -389,15 +391,12 @@ ipcMain.handle("binance:update", async (_e, patch = {}) => {
     const cur = _db.get("binance.pub").value();
     if (!cur) return { ok: false, error: "لا توجد مفاتيح محفوظة؛ احفظ أولاً." };
 
+    // إجبار Spot دائمًا
     const domain = patch.domain ?? cur.domain;
-    const mode = patch.mode ?? cur.mode;
-    if (domain === "binance.us" && mode === "futures")
-      return { ok: false, error: "Futures غير مدعومة على binance.us" };
-
     const next = {
       ...cur,
       domain,
-      mode,
+      mode: "spot",
       recvWindow: Number(patch.recvWindow ?? cur.recvWindow ?? 5000),
       proxy: patch.proxy ?? cur.proxy ?? "",
     };
@@ -647,6 +646,234 @@ ipcMain.handle("binance:test", async (_e, inCfg) => {
         ? json.slice(0, 3)
         : { keys: Object.keys(json).slice(0, 8) },
     };
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
+});
+/* === helper: vault لإرجاع المفاتيح مفكوكة === */
+function ensureVault() {
+  const _db = getDB();
+  return {
+    getCfg() {
+      const pub = _db.get("binance.pub").value();
+      const priv = _db.get("binance.priv").value();
+      if (!pub || !priv || !priv.apiSecretEnc) return null;
+      return {
+        apiKey: pub.apiKey,
+        apiSecret: decSecret(priv.apiSecretEnc),
+        domain: pub.domain || "binance.com",
+        mode: pub.mode || "spot",
+        recvWindow: Number(pub.recvWindow) || 5000,
+        proxy: pub.proxy || "",
+      };
+    },
+  };
+}
+
+// === معلومات الرمز (يقبل string أو { symbol }) ===
+ipcMain.handle("binance:exchangeInfo", async (_e, arg) => {
+  const symbol = typeof arg === "string" ? arg : arg?.symbol;
+
+  try {
+    if (!symbol) return { ok: false, error: "missing_symbol" };
+
+    const vault = ensureVault();
+    const cur = vault.getCfg();
+    if (!cur) return { ok: false, error: "لا توجد مفاتيح محفوظة؛ احفظ أولاً." };
+
+    const baseUrl = baseUrlOf(cur.domain, cur.mode);
+    const path =
+      cur.mode === "futures" ? "/fapi/v1/exchangeInfo" : "/api/v3/exchangeInfo";
+    const url = `${baseUrl}${path}?symbol=${encodeURIComponent(
+      String(symbol).toUpperCase()
+    )}`;
+
+    const res = await fetch(url, { agent: agentOf(cur.proxy) });
+    const j = await res.json();
+    if (!res.ok)
+      return { ok: false, error: j?.msg || res.statusText, status: res.status };
+
+    const sym = (j.symbols && j.symbols[0]) || j.symbol || null;
+    if (!sym) return { ok: false, error: "symbol_not_found" };
+
+    const get = (type) => {
+      const f = (sym.filters || []).find((x) => x.filterType === type);
+      return f || {};
+    };
+    const lot = get("LOT_SIZE");
+    const priceF = get("PRICE_FILTER");
+    const minNot = get("MIN_NOTIONAL");
+
+    return {
+      ok: true,
+      info: {
+        baseAsset: sym.baseAsset,
+        quoteAsset: sym.quoteAsset,
+        stepSize: lot.stepSize || "0.00000001",
+        minQty: lot.minQty || "0",
+        tickSize: priceF.tickSize || "0.00000001",
+        minNotional: minNot.minNotional || "0",
+      },
+    };
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
+});
+
+ipcMain.handle("binance:order", async (_e, payload = {}) => {
+  try {
+    const vault = ensureVault();
+    const cur = vault.getCfg();
+    if (!cur) return { ok: false, error: "لا توجد مفاتيح محفوظة؛ احفظ أولاً." };
+
+    const { apiKey, apiSecret, recvWindow, proxy } = cur;
+    const baseUrl = baseUrlOf(cur.domain, "spot"); // إجبار Spot
+
+    const p = {
+      symbol: String(payload.symbol || "").toUpperCase(),
+      side: String(payload.side || "").toUpperCase(), // BUY | SELL
+      type: String(payload.type || "").toUpperCase(), // LIMIT | MARKET | ...
+      timeInForce: payload.timeInForce, // GTC لـ LIMIT
+      quantity: payload.quantity, // (اختياري) كميّة
+      quoteOrderQty: payload.quoteOrderQty, // (اختياري) USDT للـ MARKET BUY
+      price: payload.price, // للسعر في LIMIT
+      newClientOrderId: payload.newClientOrderId, // (اختياري)
+      timestamp: Date.now(),
+      recvWindow: Number(recvWindow) || 5000,
+    };
+
+    // نظّف المفاتيح الفارغة
+    Object.keys(p).forEach((k) => (p[k] == null || p[k] === "") && delete p[k]);
+
+    if (!p.symbol || !p.side || !p.type)
+      return { ok: false, error: "missing_params" };
+
+    // توقيع الطلب
+    const usp = new URLSearchParams(p);
+    const sig = crypto
+      .createHmac("sha256", apiSecret)
+      .update(usp.toString())
+      .digest("hex");
+    usp.append("signature", sig);
+
+    const res = await fetch(`${baseUrl}/api/v3/order`, {
+      method: "POST",
+      headers: {
+        "X-MBX-APIKEY": apiKey,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: usp,
+      agent: agentOf(proxy),
+    });
+
+    const text = await res.text();
+    let json;
+    try {
+      json = JSON.parse(text);
+    } catch {
+      json = { raw: text };
+    }
+
+    if (!res.ok)
+      return {
+        ok: false,
+        error: json?.msg || res.statusText,
+        status: res.status,
+        body: json,
+      };
+    return { ok: true, order: json };
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
+});
+
+ipcMain.handle("binance:price", async (_e, arg) => {
+  const symbol = typeof arg === "string" ? arg : arg?.symbol;
+  try {
+    if (!symbol) return { ok: false, error: "missing_symbol" };
+
+    const vault = ensureVault();
+    const cur = vault.getCfg();
+    if (!cur) return { ok: false, error: "لا توجد مفاتيح محفوظة؛ احفظ أولاً." };
+
+    // إجبار Spot
+    const baseUrl = baseUrlOf(cur.domain, "spot");
+    const url = `${baseUrl}/api/v3/ticker/price?symbol=${encodeURIComponent(
+      String(symbol).toUpperCase()
+    )}`;
+
+    const res = await fetch(url, { agent: agentOf(cur.proxy) });
+    const j = await res.json();
+    if (!res.ok)
+      return { ok: false, error: j?.msg || res.statusText, status: res.status };
+    return { ok: true, price: Number(j.price), raw: j };
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
+});
+
+ipcMain.handle("binance:oco", async (_e, payload = {}) => {
+  const vault = ensureVault();
+  const cur = vault.getCfg();
+  if (!cur) return { ok: false, error: "لا توجد مفاتيح محفوظة؛ احفظ أولاً." };
+  if (cur.mode !== "spot") return { ok: false, error: "oco_spot_only" };
+
+  const { apiKey, apiSecret, recvWindow, proxy } = cur;
+  const baseUrl = baseUrlOf(cur.domain, cur.mode);
+
+  const symbol = String(payload.symbol || "").toUpperCase();
+  const quantity = String(payload.quantity || "");
+  const price = String(payload.price || ""); // TP
+  const stopPrice = String(payload.stopPrice || ""); // SL trigger
+  const stopLimitPrice = String(payload.stopLimitPrice || ""); // SL limit
+
+  if (!symbol || !quantity || !price || !stopPrice || !stopLimitPrice)
+    return { ok: false, error: "missing_params" };
+
+  try {
+    const params = {
+      symbol,
+      side: "SELL",
+      quantity,
+      price,
+      stopPrice,
+      stopLimitPrice,
+      stopLimitTimeInForce: payload.stopLimitTimeInForce || "GTC",
+      timestamp: Date.now(),
+      recvWindow: Number(recvWindow) || 5000,
+    };
+    const usp = new URLSearchParams(params);
+    const sig = crypto
+      .createHmac("sha256", apiSecret)
+      .update(usp.toString())
+      .digest("hex");
+    usp.append("signature", sig);
+
+    const res = await fetch(`${baseUrl}/api/v3/order/oco`, {
+      method: "POST",
+      headers: {
+        "X-MBX-APIKEY": apiKey,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: usp,
+      agent: agentOf(proxy),
+    });
+    const text = await res.text();
+    let json;
+    try {
+      json = JSON.parse(text);
+    } catch {
+      json = { raw: text };
+    }
+
+    if (!res.ok)
+      return {
+        ok: false,
+        error: json?.msg || res.statusText,
+        status: res.status,
+        body: json,
+      };
+    return { ok: true, oco: json };
   } catch (e) {
     return { ok: false, error: String(e) };
   }
